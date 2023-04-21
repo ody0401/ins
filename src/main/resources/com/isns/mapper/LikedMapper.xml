@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.isns.mapper.LikedMapper">
+
+    <insert id="save" >
+        INSERT INTO liked (member_no, post_no) VALUES (#{memberNo}, #{postNo})
+    </insert>
+
+    <select id="getLiked" resultType="Liked">
+        SELECT * FROM liked WHERE post_no = #{postNo} AND member_no = #{memberNo}
+    </select>
+
+    <select id="getLikedCount" resultType="int">
+        SELECT count(*) FROM liked WHERE post_no = #{postNo}
+    </select>
+
+    <delete id="delete">
+        DELETE FROM liked WHERE post_no = #{postNo} AND member_no = #{memberNo}
+    </delete>
+</mapper>

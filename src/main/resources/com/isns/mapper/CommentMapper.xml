@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.isns.mapper.CommentMapper">
+    <resultMap type="Comment" id="commentMap">
+        <id property="commentNo" column="comment_no" />
+        <result property="commentNo" column="comment_no" />
+        <result property="commentContent" column="comment_content" />
+        <result property="postNo" column="post_no" />
+        <result property="memberNo" column="member_no" />
+    </resultMap>
+
+    <select id="getComments" resultMap="commentMap">
+        SELECT * FROM comment co
+        WHERE co.post_no = #{postNo}
+    </select>
+
+    <insert id="saveComment">
+        INSERT INTO comment (comment_content, member_No, post_No) VALUES (#{commentContent}, #{memberNo}, #{postNo})
+    </insert>
+</mapper>

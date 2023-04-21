@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.isns.mapper.MemberMapper">
+    <resultMap type="Member" id="memberMap">
+        <id property="memberNo" column="member_no" />
+        <result property="memberNo" column="member_no" />
+        <result property="memberName" column="member_name" />
+        <result property="memberEmail" column="member_email" />
+        <result property="memberPw" column="member_pw" />
+        <result property="memberAvatar" column="member_avatar" />
+        <collection property="memberAuthList" resultMap="authMap">
+        </collection>
+    </resultMap>
+
+    <resultMap type="MemberAuth" id="authMap">
+        <result property="memberNo" column="member_no" />
+        <result property="memberAuth" column="member_auth" />
+    </resultMap>
+
+    <insert id="create" useGeneratedKeys="true" keyProperty="memberNo">
+        INSERT INTO
+            member (member_name, member_email, member_pw, member_avatar)
+        VALUES
+            (#{memberName}, #{memberEmail}, #{memberPw}, #{memberAvatar})
+    </insert>
+
+    <insert id="createAuth">
+        INSERT INTO
+            member_auth (member_no, member_auth)
+        VALUES
+            (#{memberNo}, #{memberAuth})
+    </insert>
+
+    <select id="readByEmail" resultMap="memberMap">
+        SELECT * FROM
+            member mem
+                LEFT JOIN
+            member_auth auth
+            ON mem.member_no = auth.member_no
+        WHERE mem.member_email = #{memberEmail}
+    </select>
+
+    <select id="getMember" resultMap="memberMap">
+        SELECT member_no, member_name, member_email, member_avatar FROM member WHERE member_no = #{memberNo}
+    </select>
+</mapper>
