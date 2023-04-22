@@ -1,5 +1,10 @@
 package com.isns.service;
 
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.isns.aws.AwsS3;
 import com.isns.domain.*;
 import com.isns.dto.PostResponseDto;
 import com.isns.mapper.*;
@@ -8,12 +13,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.FileCopyUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -21,8 +28,10 @@ import java.util.UUID;
 @Service
 public class PostServiceImpl implements PostService {
 
-    @Value("${upload.path}")
-    private String uploadPath;
+    @Value("${cloud.aws.s3.bucket}")
+    private String bucket;
+
+    private final AmazonS3 amazonS3;
 
     private final PostMapper postMapper;
 
@@ -32,19 +41,21 @@ public class PostServiceImpl implements PostService {
 
     @Transactional
     @Override
-    public void upload(Post post, MultipartFile file) throws Exception {
+    public void upload(Post post, MultipartFile multipartFile) throws Exception {
 
-        String imageSrc = "image/" + uploadFile(file.getOriginalFilename(), file.getBytes());
+        File file = convertMultipartFileToFile(multipartFile)
+                .orElseThrow(() -> new IllegalArgumentException("MultipartFile -> File convert fail"));
+
+        AwsS3 s3 = upload(file, "upload");
 
         postMapper.savePost(post);
 
         Image image = new Image();
         image.setPostNo(post.getPostNo());
-        image.setImageSrc(imageSrc);
+        image.setImageSrc(s3.getPath());
 
         postMapper.saveImage(image);
     }
-
     @Override
     public List<PostResponseDto> getAllPost(int memberNo) throws Exception {
 
@@ -78,27 +89,20 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public void delete(int postNo) throws Exception {
-        postMapper.delete(postNo);
-    }
 
-    private String uploadFile(String originalName, byte[] fileData) throws Exception {
+        Post post = postMapper.getPost(postNo);
 
-        File checkFolder = new File(uploadPath);
+        String imageSrc = post.getImage().getImageSrc();
 
-        if (!checkFolder.isDirectory()) {
-            log.info("{} 폴더 생성", checkFolder.getPath());
-            checkFolder.mkdirs();
+        String key = imageSrc.substring(imageSrc.indexOf("upload"));
+
+        if (!amazonS3.doesObjectExist(bucket, key)) {
+            throw new AmazonS3Exception("Object " + key + " does not exist!");
         }
 
-        UUID uid = UUID.randomUUID();
+        amazonS3.deleteObject(bucket, key);
 
-        String createdFileName = uid + "_" + originalName;
-
-        File target = new File(uploadPath, createdFileName);
-
-        FileCopyUtils.copy(fileData, target);
-
-        return createdFileName;
+        postMapper.delete(postNo);
     }
 
     private PostResponseDto changeDto(Post post, int memberNo) throws Exception {
@@ -123,5 +127,48 @@ public class PostServiceImpl implements PostService {
         dto.setLiked(liked != null);
 
         return dto;
+    }
+
+    public Optional<File> convertMultipartFileToFile(MultipartFile multipartFile) throws IOException {
+        File file = new File(System.getProperty("user.dir") + "/" + multipartFile.getOriginalFilename());
+
+        if (file.createNewFile()) {
+            try (FileOutputStream fos = new FileOutputStream(file)){
+                fos.write(multipartFile.getBytes());
+            }
+            return Optional.of(file);
+        }
+        return Optional.empty();
+    }
+
+
+    private AwsS3 upload(File file, String dirName) {
+        String key = randomFileName(file, dirName);
+        String path = putS3(file, key);
+        removeFile(file);
+
+        return AwsS3
+                .builder()
+                .key(key)
+                .path(path)
+                .build();
+    }
+
+    private String randomFileName(File file, String dirName) {
+        return dirName + "/" + UUID.randomUUID() + file.getName();
+    }
+
+    private String putS3(File uploadFile, String fileName) {
+        amazonS3.putObject(new PutObjectRequest(bucket, fileName, uploadFile)
+                .withCannedAcl(CannedAccessControlList.PublicRead));
+        return getS3(bucket, fileName);
+    }
+
+    private String getS3(String bucket, String fileName) {
+        return amazonS3.getUrl(bucket, fileName).toString();
+    }
+
+    private void removeFile(File file) {
+        file.delete();
     }
 }
